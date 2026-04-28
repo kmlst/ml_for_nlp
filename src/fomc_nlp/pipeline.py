@@ -26,6 +26,47 @@ from .features import (
 from .visualization import build_all_figures
 
 
+def export_raw_documents(statements: pd.DataFrame, minutes: pd.DataFrame) -> pd.DataFrame:
+    """Save extracted document text before cleaning and feature engineering."""
+
+    statement_columns = [
+        "date",
+        "year",
+        "meeting_id",
+        "statement_url",
+        "statement_text",
+        "statement_download_error",
+    ]
+    minutes_columns = [
+        "date",
+        "year",
+        "meeting_id",
+        "minutes_url",
+        "minutes_text",
+        "minutes_download_error",
+    ]
+    raw = statements[statement_columns].merge(
+        minutes[minutes_columns],
+        on=["date", "year", "meeting_id"],
+        how="outer",
+    )
+    raw = raw[
+        [
+            "date",
+            "year",
+            "meeting_id",
+            "statement_url",
+            "minutes_url",
+            "statement_text",
+            "minutes_text",
+            "statement_download_error",
+            "minutes_download_error",
+        ]
+    ].sort_values("date")
+    raw.to_csv(RAW_DATA_DIR / "fomc_documents_raw.csv", index=False)
+    return raw
+
+
 def run_collection(config: PipelineConfig) -> pd.DataFrame:
     """Collect official Fed URLs, download text and merge corpora."""
 
@@ -40,6 +81,7 @@ def run_collection(config: PipelineConfig) -> pd.DataFrame:
 
     statements = build_document_dataset(statement_links, "statement")
     minutes = build_document_dataset(minutes_links, "minutes")
+    export_raw_documents(statements, minutes)
     statements.to_csv(PROCESSED_DATA_DIR / "fomc_statements.csv", index=False)
     minutes.to_csv(PROCESSED_DATA_DIR / "fomc_minutes.csv", index=False)
     return merge_statements_minutes(statements, minutes)

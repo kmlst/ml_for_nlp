@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick checks for processed FOMC datasets."""
+"""Quick checks for raw and processed FOMC datasets."""
 
 from __future__ import annotations
 
@@ -23,6 +23,16 @@ MERGED_COLUMNS = {
     "statement_n_words",
     "minutes_n_words",
     "rate_decision",
+}
+
+RAW_COLUMNS = {
+    "date",
+    "year",
+    "meeting_id",
+    "statement_url",
+    "minutes_url",
+    "statement_text",
+    "minutes_text",
 }
 
 FEATURE_COLUMNS = {
@@ -85,6 +95,19 @@ def _check_merged(df: pd.DataFrame) -> list[str]:
     return issues
 
 
+def _check_raw_documents(df: pd.DataFrame) -> list[str]:
+    issues = []
+    issues += _check_columns(df, RAW_COLUMNS, "fomc_documents_raw.csv")
+    if issues:
+        return issues
+    issues += _check_dates(df, "fomc_documents_raw.csv")
+    for text_col in ("statement_text", "minutes_text"):
+        empty_texts = df[text_col].fillna("").str.len().eq(0).sum()
+        if empty_texts:
+            issues.append(f"fomc_documents_raw.csv: empty {text_col} = {empty_texts}")
+    return issues
+
+
 def _check_features(df: pd.DataFrame) -> list[str]:
     issues = []
     issues += _check_columns(df, FEATURE_COLUMNS | {"date"}, "fomc_features.csv")
@@ -101,8 +124,14 @@ def _check_features(df: pd.DataFrame) -> list[str]:
 
 
 def main() -> int:
+    raw_dir = ROOT / "data" / "raw"
     processed = ROOT / "data" / "processed"
     issues = []
+
+    raw_path = raw_dir / "fomc_documents_raw.csv"
+    if raw_path.exists():
+        raw = _load_csv(raw_path)
+        issues += _check_raw_documents(raw)
 
     merged = _load_csv(processed / "fomc_merged.csv")
     issues += _check_merged(merged)
