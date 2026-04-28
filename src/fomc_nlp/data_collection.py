@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from time import sleep
 from typing import Literal
 from urllib.parse import urljoin
@@ -328,26 +327,6 @@ def infer_rate_decision(text: str | None) -> str:
     return "unknown"
 
 
-def apply_manual_rate_decisions(
-    df: pd.DataFrame,
-    manual_path: Path = RAW_DATA_DIR / "rate_decisions_manual.csv",
-) -> pd.DataFrame:
-    """Override inferred labels with an optional hand-checked CSV."""
-
-    if not manual_path.exists():
-        return df
-    manual = pd.read_csv(manual_path, dtype={"date": str, "rate_decision": str})
-    if "date" not in manual or "rate_decision" not in manual:
-        return df
-    overrides = manual.dropna(subset=["date", "rate_decision"]).set_index("date")["rate_decision"]
-    result = df.copy()
-    result["rate_decision"] = result.apply(
-        lambda row: overrides.get(row["date"], row.get("rate_decision", "unknown")),
-        axis=1,
-    )
-    return result
-
-
 def build_document_dataset(
     links: pd.DataFrame,
     document_type: DocumentType,
@@ -384,7 +363,6 @@ def build_document_dataset(
     result = pd.DataFrame(rows)
     if document_type == "statement":
         result["rate_decision"] = result[text_col].map(infer_rate_decision)
-        result = apply_manual_rate_decisions(result)
     return result
 
 
@@ -429,7 +407,6 @@ def merge_statements_minutes(
     )
     if "rate_decision" not in merged:
         merged["rate_decision"] = merged.get("statement_text", "").map(infer_rate_decision)
-    merged = apply_manual_rate_decisions(merged)
 
     ordered_columns = [
         "date",

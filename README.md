@@ -24,7 +24,7 @@ Fichiers produits :
 - `data/processed/fomc_features.csv`
 - `data/processed/top_semantic_shifts.csv`
 
-Les labels `rate_decision` sont inférés à partir des Statements. Les corrections manuelles peuvent être mises dans `data/raw/rate_decisions_manual.csv`.
+Les labels `rate_decision` sont inférés automatiquement à partir des Statements.
 
 ## Installation
 
@@ -54,6 +54,12 @@ Vérifier rapidement les CSV produits :
 
 ```bash
 python scripts/check_data_sanity.py
+```
+
+Notebook de première lecture :
+
+```text
+notebooks/fomc_document_analysis.ipynb
 ```
 
 ## Organisation

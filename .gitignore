@@ -8,9 +8,6 @@ __pycache__/
 venv/
 env/
 
-data/raw/*.csv
-data/raw/*.html
-data/processed/*.csv
 figures/*.png
 
 reports/
