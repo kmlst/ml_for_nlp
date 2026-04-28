@@ -23,6 +23,10 @@ from .features import get_top_terms
 sns.set_theme(style="whitegrid", context="notebook")
 
 
+def _corpus_filename(corpus: str) -> str:
+    return "statements" if corpus == "statement" else "minutes"
+
+
 def _save(fig: plt.Figure, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
@@ -104,7 +108,7 @@ def plot_top_terms(features: pd.DataFrame, corpus: str, output_dir: Path = FIGUR
     ax.set_title(f"Top terms - {corpus}")
     ax.set_xlabel("Count")
     ax.set_ylabel("")
-    _save(fig, output_dir / f"top_terms_{corpus}s.png")
+    _save(fig, output_dir / f"top_terms_{_corpus_filename(corpus)}.png")
 
 
 def plot_keyword_trends_by_type(keyword_df: pd.DataFrame, output_dir: Path = FIGURES_DIR) -> None:
@@ -213,7 +217,7 @@ def plot_top_semantic_shifts(
     ax.set_title(f"Top TF-IDF semantic shifts - {corpus}")
     ax.set_xlabel("Semantic shift")
     ax.set_ylabel("Meeting date")
-    _save(fig, output_dir / f"top_semantic_shifts_{corpus}s.png")
+    _save(fig, output_dir / f"top_semantic_shifts_{_corpus_filename(corpus)}.png")
 
 
 def plot_statement_minutes_similarity(features: pd.DataFrame, output_dir: Path = FIGURES_DIR) -> None:

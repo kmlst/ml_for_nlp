@@ -69,6 +69,8 @@ RATE_DECISION_PATTERNS = {
     ],
     "hold": [
         r"\b(decided|voted|agreed)\b.{0,80}\b(maintain|keep|leave)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
+        r"\b(will|would|shall|to)\b.{0,20}\b(maintain|keep|leave)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
+        r"\b(maintain|maintaining|keep|keeping|kept|leave|leaving)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
         r"\b(target range|target for the federal funds rate|federal funds rate)\b.{0,80}\b(unchanged|maintained)\b",
     ],
 }
@@ -182,11 +184,14 @@ def _parse_historical_year_page(year: int, html: str) -> list[MeetingLinks]:
             href_lower = href.lower()
             if label == "statement":
                 row["statement_url"] = href
-            elif (
+            is_minutes_link = (
                 label == "minutes"
                 or ("fomcminutes" in href_lower and href_lower.endswith(".htm"))
                 or ("/fomc/minutes/" in href_lower and href_lower.endswith(".htm"))
-            ):
+                or bool(re.search(r"/monetarypolicy/fomc\d{8}\.htm$", href_lower))
+            )
+            link_date = parse_date_from_url(href)
+            if is_minutes_link and (link_date is None or link_date == meeting_date):
                 row["minutes_url"] = href
         meetings.append(MeetingLinks(**row))
 

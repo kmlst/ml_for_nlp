@@ -23,7 +23,6 @@ from .features import (
     build_top_semantic_shifts,
     export_keyword_frequencies,
 )
-from .modeling import compare_statement_minutes_models, export_modeling_datasets
 from .visualization import build_all_figures
 
 
@@ -75,21 +74,6 @@ def run_figures() -> None:
     build_all_figures(features, keyword_df, top_shifts, FIGURES_DIR)
 
 
-def run_models(config: PipelineConfig, split: str = "chronological") -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run supervised classification experiments."""
-
-    features = pd.read_csv(PROCESSED_DATA_DIR / "fomc_features.csv", dtype={"date": str})
-    export_modeling_datasets(features)
-    return compare_statement_minutes_models(
-        features,
-        split=split,
-        test_size=config.test_size,
-        random_state=config.random_state,
-        min_df=config.min_df,
-        max_features=config.max_features,
-    )
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FOMC NLP pipeline")
     parser.add_argument("--start-year", type=int, default=2000)
@@ -98,18 +82,11 @@ def parse_args() -> argparse.Namespace:
         "--steps",
         nargs="+",
         default=["all"],
-        choices=["all", "collect", "features", "figures", "models"],
+        choices=["all", "collect", "features", "figures"],
         help="Pipeline steps to run.",
     )
     parser.add_argument("--min-df", type=int, default=1)
     parser.add_argument("--max-features", type=int, default=5000)
-    parser.add_argument("--test-size", type=float, default=0.25)
-    parser.add_argument(
-        "--split",
-        choices=["chronological", "stratified"],
-        default="chronological",
-        help="Evaluation split. Chronological falls back to stratified when a split is unusable.",
-    )
     return parser.parse_args()
 
 
@@ -120,11 +97,10 @@ def main() -> None:
         end_year=args.end_year,
         min_df=args.min_df,
         max_features=args.max_features,
-        test_size=args.test_size,
     )
     steps = set(args.steps)
     if "all" in steps:
-        steps = {"collect", "features", "figures", "models"}
+        steps = {"collect", "features", "figures"}
 
     if "collect" in steps:
         run_collection(config)
@@ -132,8 +108,6 @@ def main() -> None:
         run_features(config)
     if "figures" in steps:
         run_figures()
-    if "models" in steps:
-        run_models(config, split=args.split)
 
 
 if __name__ == "__main__":

@@ -26,8 +26,6 @@ class PipelineConfig:
     end_year: int = 2024
     min_df: int = 1
     max_features: int = 5000
-    test_size: float = 0.25
-    random_state: int = 42
 
 
 HAWKISH_TERMS = [
