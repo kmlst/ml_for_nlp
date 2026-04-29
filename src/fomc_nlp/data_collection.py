@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from time import sleep
-from typing import Literal
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -16,13 +15,9 @@ from bs4 import BeautifulSoup
 from .config import (
     FED_BASE_URL,
     FOMC_CALENDAR_URL,
-    PROCESSED_DATA_DIR,
     RAW_DATA_DIR,
 )
-from .preprocessing import clean_text, count_words
 
-
-DocumentType = Literal["statement", "minutes"]
 
 MONTHS = {
     "jan": 1,
@@ -57,23 +52,6 @@ HISTORICAL_HEADING_RE = re.compile(
     re.IGNORECASE,
 )
 
-RATE_DECISION_PATTERNS = {
-    "hike": [
-        r"\b(decided|voted|agreed|approved)\b.{0,80}\b(raise|raising|increase|increasing)\b.{0,80}\b(target|federal funds|discount rate)\b",
-        r"\b(raise|raising|increase|increasing|increased)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
-    ],
-    "cut": [
-        r"\b(decided|voted|agreed|approved)\b.{0,80}\b(lower|lowering|reduce|reducing|decrease|decreasing|cut)\b.{0,80}\b(target|federal funds|discount rate)\b",
-        r"\b(lower|lowering|reduce|reducing|decrease|decreasing|cut)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
-    ],
-    "hold": [
-        r"\b(decided|voted|agreed)\b.{0,80}\b(maintain|keep|leave)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
-        r"\b(will|would|shall|to)\b.{0,20}\b(maintain|keep|leave)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
-        r"\b(maintain|maintaining|keep|keeping|kept|leave|leaving)\b.{0,80}\b(target range|target for the federal funds rate|federal funds rate)\b",
-        r"\b(target range|target for the federal funds rate|federal funds rate)\b.{0,80}\b(unchanged|maintained)\b",
-    ],
-}
-
 
 @dataclass(frozen=True)
 class MeetingLinks:
@@ -90,7 +68,6 @@ def ensure_output_dirs() -> None:
     """Create expected data directories."""
 
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def fetch_html(url: str, timeout: int = 30) -> str:
@@ -213,7 +190,7 @@ def _parse_current_calendar_page(html: str, start_year: int, end_year: int) -> l
         if year < start_year or year > end_year:
             continue
 
-        document_type: DocumentType | None = None
+        document_type: str | None = None
         if "fomcminutes" in url_lower and label == "html":
             document_type = "minutes"
         elif "/pressreleases/monetary" in url_lower and label == "html":
@@ -261,22 +238,6 @@ def collect_fomc_meeting_links(start_year: int = 2000, end_year: int = 2024) -> 
     )
 
 
-def collect_fomc_statement_urls(start_year: int = 2000, end_year: int = 2024) -> pd.DataFrame:
-    """Return one row per meeting with a statement URL when available."""
-
-    columns = ["date", "year", "meeting_id", "statement_url"]
-    df = collect_fomc_meeting_links(start_year, end_year)
-    return df.loc[df["statement_url"].notna(), columns].reset_index(drop=True)
-
-
-def collect_fomc_minutes_urls(start_year: int = 2000, end_year: int = 2024) -> pd.DataFrame:
-    """Return one row per meeting with a minutes URL when available."""
-
-    columns = ["date", "year", "meeting_id", "minutes_url"]
-    df = collect_fomc_meeting_links(start_year, end_year)
-    return df.loc[df["minutes_url"].notna(), columns].reset_index(drop=True)
-
-
 def _extract_main_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript", "nav", "header", "footer"]):
@@ -314,116 +275,52 @@ def download_document_text(url: str) -> str:
     return _extract_main_text(html)
 
 
-def infer_rate_decision(text: str | None) -> str:
-    """Infer hike/cut/hold from explicit decision language."""
+def _download_or_error(
+    url: str | float | None,
+    continue_on_error: bool = True,
+) -> tuple[str, str]:
+    """Download one document and return text plus an error string."""
 
-    cleaned = clean_text(text)
-    if not cleaned:
-        return "unknown"
-    for label in ("hike", "cut", "hold"):
-        for pattern in RATE_DECISION_PATTERNS[label]:
-            if re.search(pattern, cleaned, flags=re.IGNORECASE | re.DOTALL):
-                return label
-    return "unknown"
+    if not isinstance(url, str) or not url.strip():
+        return "", "missing_url"
+    try:
+        return download_document_text(url), ""
+    except Exception as exc:
+        if not continue_on_error:
+            raise
+        return "", str(exc)
 
 
-def build_document_dataset(
+def build_raw_documents_dataset(
     links: pd.DataFrame,
-    document_type: DocumentType,
     sleep_seconds: float = 0.1,
     continue_on_error: bool = True,
 ) -> pd.DataFrame:
-    """Download, clean and count one FOMC corpus."""
+    """Download statements and minutes without adding analysis columns."""
 
-    url_col = f"{document_type}_url"
-    text_col = f"{document_type}_text"
-    clean_col = f"{document_type}_clean_text"
-    n_words_col = f"{document_type}_n_words"
     rows: list[dict[str, object]] = []
-
     for row in links.to_dict(orient="records"):
-        output = dict(row)
-        url = output.get(url_col)
-        try:
-            text = download_document_text(str(url))
-            output[text_col] = text
-            output[clean_col] = clean_text(text)
-            output[n_words_col] = count_words(text)
-            output[f"{document_type}_download_error"] = ""
-        except Exception as exc:
-            if not continue_on_error:
-                raise
-            output[text_col] = ""
-            output[clean_col] = ""
-            output[n_words_col] = 0
-            output[f"{document_type}_download_error"] = str(exc)
-        rows.append(output)
+        statement_text, statement_error = _download_or_error(
+            row.get("statement_url"),
+            continue_on_error=continue_on_error,
+        )
+        minutes_text, minutes_error = _download_or_error(
+            row.get("minutes_url"),
+            continue_on_error=continue_on_error,
+        )
+        rows.append(
+            {
+                "date": row["date"],
+                "year": row["year"],
+                "meeting_id": row["meeting_id"],
+                "statement_url": row.get("statement_url"),
+                "minutes_url": row.get("minutes_url"),
+                "statement_text": statement_text,
+                "minutes_text": minutes_text,
+                "statement_download_error": statement_error,
+                "minutes_download_error": minutes_error,
+            }
+        )
         sleep(sleep_seconds)
 
-    result = pd.DataFrame(rows)
-    if document_type == "statement":
-        result["rate_decision"] = result[text_col].map(infer_rate_decision)
-    return result
-
-
-def build_statements_dataset(start_year: int = 2000, end_year: int = 2024) -> pd.DataFrame:
-    """Collect and download the statements corpus."""
-
-    ensure_output_dirs()
-    links = collect_fomc_statement_urls(start_year, end_year)
-    df = build_document_dataset(links, "statement")
-    df.to_csv(PROCESSED_DATA_DIR / "fomc_statements.csv", index=False)
-    return df
-
-
-def build_minutes_dataset(start_year: int = 2000, end_year: int = 2024) -> pd.DataFrame:
-    """Collect and download the minutes corpus."""
-
-    ensure_output_dirs()
-    links = collect_fomc_minutes_urls(start_year, end_year)
-    df = build_document_dataset(links, "minutes")
-    df.to_csv(PROCESSED_DATA_DIR / "fomc_minutes.csv", index=False)
-    return df
-
-
-def merge_statements_minutes(
-    statements: pd.DataFrame | None = None,
-    minutes: pd.DataFrame | None = None,
-    output_path: Path = PROCESSED_DATA_DIR / "fomc_merged.csv",
-) -> pd.DataFrame:
-    """Merge statements and minutes by meeting date."""
-
-    ensure_output_dirs()
-    if statements is None:
-        statements = pd.read_csv(PROCESSED_DATA_DIR / "fomc_statements.csv", dtype={"date": str})
-    if minutes is None:
-        minutes = pd.read_csv(PROCESSED_DATA_DIR / "fomc_minutes.csv", dtype={"date": str})
-
-    merged = statements.merge(
-        minutes,
-        on=["date", "year", "meeting_id"],
-        how="outer",
-        suffixes=("", ""),
-    )
-    if "rate_decision" not in merged:
-        merged["rate_decision"] = merged.get("statement_text", "").map(infer_rate_decision)
-
-    ordered_columns = [
-        "date",
-        "year",
-        "meeting_id",
-        "statement_url",
-        "minutes_url",
-        "statement_text",
-        "minutes_text",
-        "statement_clean_text",
-        "minutes_clean_text",
-        "statement_n_words",
-        "minutes_n_words",
-        "rate_decision",
-    ]
-    remaining = [column for column in merged.columns if column not in ordered_columns]
-    merged = merged[[column for column in ordered_columns if column in merged.columns] + remaining]
-    merged = merged.sort_values("date").reset_index(drop=True)
-    merged.to_csv(output_path, index=False)
-    return merged
+    return pd.DataFrame(rows).sort_values("date").reset_index(drop=True)
