@@ -8,9 +8,6 @@ __pycache__/
 venv/
 env/
 
-figures/*.png
 data/processed/*.csv
-
-reports/
 
 pyproject.toml
