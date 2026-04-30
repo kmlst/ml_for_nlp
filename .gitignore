@@ -11,3 +11,4 @@ env/
 data/processed/*.csv
 
 pyproject.toml
+*.npy
