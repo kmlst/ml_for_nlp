@@ -9,5 +9,5 @@ venv/
 env/
 
 data/processed/*.csv
-
+reports/
 pyproject.toml
