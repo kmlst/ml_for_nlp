@@ -1,0 +1,681 @@
+\documentclass{article}
+
+\usepackage[preprint]{neurips_2023}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\graphicspath{{./}{../}}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\newcommand{\fomc}{FOMC}
+\newcommand{\fed}{Federal Reserve}
+\newcommand{\tfidf}{TF--IDF}
+\newcommand{\svm}{linear SVM}
+\newcommand{\logreg}{logistic regression}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\newcommand{\reportfigure}[3]{
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=#2\textwidth]{#1}
+    \caption{#3}
+\end{figure}
+}
+
+\title{
+Inflation versus Labor-Market Attention in FOMC Statements and Minutes\\
+\large A descriptive NLP report on the Federal Reserve dual mandate, 2000--2024
+}
+
+\author{
+  Kamil Stos \\
+  ENSAE Paris \\
+  \texttt{kamil.stos@ensae.fr}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report studies how \fomc{} statements and minutes differ in their treatment of the
+two sides of the Federal Reserve's mandate: inflation and the labor market. We use 199
+meetings from 2000 to 2024, with one statement and one set of minutes for each meeting.
+The starting point is a transparent dictionary score: inflation language minus
+labor-market language, normalized by document length. The main pattern is clear:
+statements are short, concentrated, and much more inflation-focused than minutes, while
+minutes are longer and closer to balance, with more space for labor-market conditions,
+uncertainty, and financial stress. We then split the corpus into sentences, label a
+balanced sample with a local language model, and train simple \tfidf{} and embedding
+classifiers on those sentence pseudo-labels. The sentence model gives a richer picture:
+it confirms the inflation--labor contrast, shows where exact dictionary matching misses
+financial-conditions language, and makes embeddings a substantive part of the analysis.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+The \fed{} has a dual mandate: price stability and maximum employment. After each
+\fomc{} meeting, the Committee publishes a short statement. A few weeks later, it
+publishes longer minutes. Both documents refer to the same meeting, but they play
+different communication roles. The statement is the immediate public message; the minutes
+give a more detailed account of the discussion.
+
+This report asks a simple question:
+
+\begin{quote}
+\emph{Do statements and minutes give the same relative attention to inflation and the labor market? Do they treat both subjects the same way?}
+\end{quote}
+
+The report follows the public communication itself: the topics that appear in the
+documents, the space given to each side of the mandate, and the way this changes across
+document types and periods. The first measure is intentionally transparent. I count how
+often each document uses a small set of inflation terms and labor-market terms, then
+compare the two counts after normalizing by document length.
+
+The asymmetry is interesting because it is partly expected. The Fed's legal mandate is
+dual, but price stability has a special place in central-bank communication. Inflation is
+directly tied to credibility, expectations, and the policy instrument. Labor-market
+conditions matter throughout the corpus, but they often appear as evidence about slack,
+demand, wage pressure, or the cost of tightening. A document can therefore be highly
+focused on inflation while still mentioning employment. Conversely, a document can
+discuss the labor market while still supporting a restrictive policy stance.
+
+The companion report by Mathieu takes the symmetric policy-tone angle: hawkish versus
+dovish communication. This report takes the macro-topic angle: inflation versus the
+labor market. The two views complement each other. Inflation language often supports a
+hawkish signal, but the mapping is imperfect; labor-market language can describe slack,
+wage pressure, or resilience while the overall policy stance remains restrictive.
+
+The report has three parts. First, I compare statements and minutes with the dictionary
+score across document types, time, policy episodes, and rate decisions. This gives the
+main descriptive result: statements are consistently more inflation-heavy than minutes.
+Second, I move to sentences. The corpus contains almost 59,000 usable sentences; a
+balanced sample is labelled automatically, then used to train small \tfidf{} and local
+embedding classifiers. This step uses embeddings as semantic features in a prediction
+task. Third, I apply the sentence classifier to the full corpus and add a small calendar
+check around elections and institutional timing. The methods stay close to the style of
+the project: pandas, sklearn, simple dictionaries, and figures that can be read directly.
+
+\section{Related Work}
+\label{sec:literature}
+
+This project is part of the broader text-as-data approach to central bank communication.
+Blinder et al. \citep{blinder2008central} emphasize that communication is itself a policy
+instrument. Central banks move interest rates, explain their decisions, and shape
+expectations.
+
+Several papers apply text methods to \fomc{} communication. Acosta and Meade
+\citep{acosta2015hanging} study post-meeting statements with semantic similarity tools
+and document how statements changed over time. Hansen, McMahon, and Prat
+\citep{hansen2018transparency} use internal \fomc{} transcripts to study deliberation
+inside the Committee. Their data are richer than mine because transcripts contain
+individual interventions, while this report uses public statements and minutes.
+
+The dual-mandate motivation is closest to Shapiro and Wilson
+\citep{shapiro2022taking}, who estimate central bank objectives from internal meeting
+language. This report uses public statements and minutes, and measures the relative
+textual weight of two families of terms.
+
+The statement--minutes comparison is also related to work on the policy signal contained
+in central bank wording. Tadle \citep{tadle2022minutes} builds sentiment indices for
+\fomc{} statements and minutes and studies their relation with financial markets. Doh,
+Kim, and Yang \citep{doh2021matters} show that qualitative descriptions in \fomc{}
+statements can move bond prices. Doh, Song, and Yang \citep{doh2025deciphering} use
+alternative \fomc{} statements and language models to measure hawkish and dovish stance.
+Those papers are closer to the companion hawkish/dovish report. Here, the target is
+different: I measure whether the text emphasizes inflation or the labor market.
+
+The choice of a small dictionary also follows a standard warning in text analysis.
+Gentzkow, Kelly, and Taddy \citep{gentzkow2019text} stress that a text measure should be
+clear about what it measures. Loughran and McDonald \citep{loughran2011liability} show
+that generic sentiment dictionaries can be misleading in financial texts. I therefore
+use a short dictionary tied to the Fed's dual mandate and to the vocabulary of the
+corpus.
+
+\section{Data}
+\label{sec:data}
+
+The corpus comes from the official \fed{} website and is stored in
+\code{data/raw/fomc\_documents\_raw.csv}. Each row corresponds to one meeting and contains
+the meeting date, URLs, statement text, and minutes text.
+
+The sample contains 199 meetings from February 2000 to December 2024. Every meeting has
+both a statement and minutes. Rate decisions are inferred from statement text with simple
+regular expressions and coded as \emph{hike}, \emph{cut}, or \emph{hold}. The sample has
+59 hikes, 30 cuts, and 110 holds.
+
+\begin{table}[H]
+\centering
+\caption{Corpus size and document length.}
+\label{tab:descriptive}
+\begin{tabular}{lrrrr}
+\toprule
+Document type & Documents & Mean words & Median words & Std. words \\
+\midrule
+Statements & 199 & 526.1 & 536.0 & 217.4 \\
+Minutes    & 199 & 7283.2 & 7536.0 & 2441.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\reportfigure{figures/document_length_by_type.png}{0.82}
+{Document length by meeting. Minutes are much longer than statements, so dictionary scores are normalized by document length.}
+
+The length difference is large. Minutes contain about fourteen times more words than
+statements on average. Raw counts would mostly measure document size, so the main
+quantities below are reported as mentions per 1,000 words.
+
+The preprocessing is intentionally light. Text is lowercased, whitespace is normalized,
+and words are counted with a regular expression. Stopwords are kept for the dictionary
+measure because several terms are multi-word expressions, such as \emph{price
+stability}, \emph{labor market}, and \emph{inflation expectations}.
+
+\section{Measures and Checks}
+\label{sec:measure}
+
+\subsection{Dictionary balance}
+
+I define two short dictionaries. The inflation dictionary contains terms such as
+\emph{inflation}, \emph{inflationary}, \emph{price stability}, \emph{price pressures},
+\emph{inflation expectations}, \emph{core inflation}, \emph{PCE inflation},
+\emph{consumer prices}, \emph{energy prices}, \emph{food prices}, \emph{cost pressures},
+\emph{supply constraints}, and \emph{disinflation}.
+
+The labor-market dictionary contains terms such as \emph{employment},
+\emph{unemployment}, \emph{labor market}, \emph{job gains}, \emph{payrolls},
+\emph{hiring}, \emph{layoffs}, \emph{wages}, \emph{labor demand}, \emph{labor supply},
+\emph{labor force}, \emph{slack}, \emph{participation}, \emph{vacancies}, and
+\emph{job openings}.
+
+For a document $d$, the two attention scores are:
+
+\begin{equation}
+    I(d) = 1000 \times
+    \frac{\#\{\text{inflation terms in } d\}}
+    {\#\{\text{words in } d\}},
+    \qquad
+    L(d) = 1000 \times
+    \frac{\#\{\text{labor-market terms in } d\}}
+    {\#\{\text{words in } d\}}.
+\end{equation}
+
+The balance score is:
+
+\begin{equation}
+    B(d) = I(d) - L(d).
+    \label{eq:balance}
+\end{equation}
+
+A positive value means that inflation terms are more frequent than labor-market terms.
+The matching is intentionally transparent. It also has limits: phrases can overlap with
+single words, and words such as \emph{wages} can appear in both labor-market and
+inflation-pressure contexts.
+
+\subsection{Dictionary checks}
+
+I add two simple checks because the dictionary is the core measurement choice.
+
+The first check counts which terms drive the score. A dictionary measure can look stable
+while being driven by one repeated word, so the term composition matters. The second
+check works at the sentence level. Each sentence is tagged as \emph{inflation only},
+\emph{labor only}, \emph{both}, or \emph{neither}, depending on which dictionary terms
+it contains.
+This gives a sentence-level check on whether the document score is supported by
+identifiable sentences.
+
+\subsection{\tfidf{} geometry}
+
+As a final document-level check, I use a low-rank \tfidf{} representation. After vectorizing
+statements and minutes with unigrams and bigrams, I apply truncated SVD:
+
+\begin{equation}
+    X \approx U_k \Sigma_k V_k^\top .
+\end{equation}
+
+This is the usual latent semantic analysis view \citep{deerwester1990indexing}. If
+statements and minutes separate strongly in this space, then document format is an
+important source of variation and should be kept in mind when reading the dictionary
+results.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Statements are more concentrated}
+
+\begin{table}[H]
+\centering
+\caption{Average attention scores per 1,000 words.}
+\label{tab:attention}
+\begin{tabular}{lrrr}
+\toprule
+Document type & Inflation & Labor market & Balance \\
+\midrule
+Statements & 18.37 & 7.75 & 10.62 \\
+Minutes    & 10.58 & 5.98 & 4.60 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\reportfigure{figures/mandate_salience_over_time.png}{0.90}
+{Yearly average inflation and labor-market attention. Statements are more concentrated than minutes on both dimensions.}
+
+Inflation language is more frequent than labor-market language in both document types.
+The difference is larger in statements. This is consistent with the role of the
+statement as a short policy message. Minutes are longer and cover more of the meeting,
+so the same macro topics take up a smaller share of the text.
+
+\reportfigure{figures/mandate_balance_over_time.png}{0.88}
+{Inflation-minus-labor balance by meeting. Faint lines show raw meeting scores; darker lines show a four-meeting rolling average.}
+
+The balance is usually positive, and the statement and minutes series move differently.
+Statements are often more inflation-dominant than minutes. The gap narrows in periods
+where labor-market language becomes more visible, especially around the first Covid
+shock. This is one of the clearest examples where the labor side of the mandate appears
+more directly in the public statement.
+
+\subsection{Dictionary and sentence checks}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Most frequent dictionary terms in the corpus. Counts use the same matching rule as the score.}
+\label{tab:term-check}
+\begin{tabular}{llp{0.58\textwidth}}
+\toprule
+Document type & Topic & Most frequent terms \\
+\midrule
+Statements & Inflation & inflation (1,340); inflation expectations (267); price stability (259); energy prices (76); core inflation (22) \\
+Statements & Labor & labor market (410); employment (337); unemployment (138); job gains (64); slack (18) \\
+Minutes & Inflation & inflation (10,387); inflation expectations (1,587); energy prices (985); price stability (779); core inflation (410) \\
+Minutes & Labor & employment (2,293); labor market (2,235); unemployment (1,953); participation (444); slack (442) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The term check shows that the inflation side is strongly driven by the word
+\emph{inflation}, which is expected. The next terms are also meaningful economic
+expressions, which supports that the count is about FOMC language. On the labor side,
+the counts are spread across \emph{labor market}, \emph{employment}, and
+\emph{unemployment}, with some use of \emph{job gains}, \emph{participation}, and
+\emph{slack}.
+
+\reportfigure{figures/sentence_topic_audit.png}{0.72}
+{Sentence-level dictionary check. Each sentence is classified as inflation only, labor only, both, or neither.}
+
+The sentence check moves away from treating each document as a single block.
+In statements, 13.0\% of sentences contain inflation terms only, 5.5\% contain labor
+terms only, and 10.8\% contain both. In minutes, the corresponding shares are 10.7\%,
+7.0\%, and 3.6\%. This supports the main reading: statements more often compress both
+sides of the mandate into a short text, while minutes spread the discussion across many
+more sentences.
+
+\subsection{Decisions, periods, and document gaps}
+
+\reportfigure{figures/mandate_balance_by_decision.png}{0.90}
+{Mandate balance by current and next rate decision. Points are meetings; diamonds are group means.}
+
+The balance score is related to rate decisions in the expected direction. Hike meetings
+have higher average balances than cuts or holds. This descriptive check says that
+meetings near hikes use more inflation language relative to labor-market language.
+
+\reportfigure{figures/mandate_balance_by_period.png}{0.76}
+{Average mandate balance by period. Sample sizes are shown under the period labels.}
+
+The period comparison is coarse, but it helps locate the main episodes. The Covid shock
+has a lower balance, mainly because labor-market language becomes more visible in
+statements. The global financial crisis remains more positive in this dictionary,
+probably because much of that discussion uses financial-stability, credit, and risk
+language outside the labor terms listed above.
+
+\reportfigure{figures/statement_minutes_balance_gap.png}{0.82}
+{Minutes minus statement balance. Negative values mean that statements are more inflation-dominant than minutes.}
+
+The statement--minutes gap is often negative. This means that the short public statement
+is usually more inflation-dominant than the longer account of the meeting. The largest
+absolute gaps are listed in \cref{tab:gaps}. They mostly come from the early 2000s and
+the 2004--2006 tightening cycle.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Largest absolute statement--minutes balance gaps.}
+\label{tab:gaps}
+\begin{tabular}{llrrrl}
+\toprule
+Date & Decision & Statement & Minutes & Gap & Label \\
+\midrule
+2000-10-03 & hold & 31.41 & 9.55 & -21.86 & early 2000s \\
+2004-09-21 & hike & 24.22 & 2.71 & -21.51 & 2004--06 tightening \\
+2000-11-15 & hold & 30.61 & 9.55 & -21.06 & early 2000s \\
+2005-12-13 & hike & 33.61 & 13.10 & -20.52 & 2004--06 tightening \\
+2000-12-19 & hold & 23.81 & 4.09 & -19.72 & early 2000s \\
+2004-11-10 & hike & 22.14 & 4.49 & -17.65 & 2004--06 tightening \\
+2005-02-02 & hike & 21.66 & 4.40 & -17.26 & 2004--06 tightening \\
+2006-12-12 & hike & 23.62 & 8.22 & -15.40 & 2004--06 tightening \\
+2004-05-04 & hold & 14.08 & -1.26 & -15.35 & 2004--06 tightening \\
+2005-08-09 & hike & 27.97 & 12.88 & -15.10 & 2004--06 tightening \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These meetings highlight how meeting-specific the score can be. A large negative gap
+means that the statement was much more one-sided than the minutes, while the two
+documents can still tell a consistent story about the same meeting.
+
+\subsection{\tfidf{} geometry}
+
+\reportfigure{figures/lsa_document_map.png}{0.80}
+{\tfidf{}/LSA map of statements and minutes. Color is the inflation-labor balance.}
+
+The first two SVD dimensions separate statements and minutes clearly. In this low-rank
+\tfidf{} map, document format is a major source of variation. The inflation-labor balance
+appears more as a color gradient than as the main separation. This supports the choice to
+compare statements and minutes directly as separate document formats.
+
+\section{Sentence-Level Topic Classification}
+\label{sec:sentence-classifier}
+
+The dictionary is readable and easy to inspect, but it sees exact terms. This matters in
+\fomc{} texts. A sentence about credit conditions, market liquidity, or financial stress
+can be central to the Fed's communication while using none of the inflation or
+labor-market words above. The global financial crisis is the clearest example: much of
+the relevant language is about markets, credit, and liquidity, which sit outside the two
+mandate dictionaries.
+
+To check this more directly, I split the statements and minutes into 58,976 sentences.
+For each sentence, I keep the meeting date, document type, sentence position, rate
+decision, period, election-window indicators, and dictionary label. I then draw a
+balanced sample of 400 sentences. The sample includes statements and
+minutes, inflation-only sentences, labor-only sentences, sentences containing both
+dictionaries, sentences containing neither dictionary, meetings with large
+statement--minutes gaps, crisis and post-Covid inflation periods, and federal election
+windows. This sampling design covers the easy dictionary cases and the harder sentences
+where exact matching is likely to miss something.
+
+\subsection{Automatic sentence labels}
+
+The 400 sampled sentences are labelled with a local language model using a fixed JSON
+schema. The main topic can be \emph{inflation}, \emph{labor}, \emph{both},
+\emph{financial conditions}, \emph{policy decision}, or \emph{other}. The prompt asks
+the model to base the classification on the sentence itself and to use \emph{financial
+conditions} for sentences about credit, markets, liquidity, volatility, asset prices, or
+market functioning. These labels are pseudo-labels: they provide a second, broader
+reading of the same sentences and a training target for a small classifier.
+
+In this balanced sample, the most striking result is how often the automatic label is
+\emph{financial conditions}: 34.0\% of the sample. Because the sample is balanced and
+tilted toward hard cases, this percentage is best read as a stress test of the
+dictionary. It reveals an important category of sentences outside the inflation--labor
+dictionary. In the pseudo-labels, many dictionary-\emph{neither} sentences contain
+substantive background on credit, market functioning, or financial stress.
+
+\reportfigure{figures/dictionary_llm_sentence_confusion.png}{0.82}
+{Dictionary sentence labels compared with pseudo-labelled sentence topics. The main gap is that many dictionary-\emph{other} sentences are labelled as financial conditions.}
+
+The comparison is reassuring in the easy cases. Sentences with explicit inflation words
+are mostly labelled as inflation or both. Sentences with explicit labor-market words are
+mostly labelled as labor or both. But the disagreement is informative. Financial
+conditions appear across all dictionary buckets, especially in sentences that the
+dictionary calls \emph{other}. This helps explain why the global financial crisis needs
+more than an inflation-minus-labor score: the central topic in many sentences is a third
+category.
+
+\subsection{Dictionary, \tfidf{}, and embeddings}
+
+I then train small sentence classifiers on the pseudo-labels. This is the main ML/NLP
+addition to the report. The question is direct: can the sentence topics be learned from
+text, and do embeddings add information beyond exact dictionary matching?
+The target is the main topic, with \emph{other} and \emph{policy decision} merged into a
+single non-mandate category when the class sizes are too small.
+
+I compare three models. The first is the dictionary rule itself. It is transparent and
+uses sentences that contain inflation or labor terms. The second is a \tfidf{}
+logistic-regression classifier with unigrams and bigrams.
+This tests whether a standard sparse text representation can learn the pseudo-labels. The
+third is a logistic-regression classifier on local sentence embeddings from
+\code{nomic-embed-text}. This tests whether semantic features capture nearby language,
+for example market stress or liquidity language, outside the dictionary. I also
+include a no-training embedding baseline: each sentence embedding is compared with short
+prototype descriptions of inflation, labor, financial conditions, policy decisions, and
+other text.
+
+\reportfigure{figures/embedding_prototype_confusion.png}{0.66}
+{Embedding prototype classifier on the pseudo-labelled sentence sample. This is a no-training baseline: each sentence is assigned to the nearest topic prototype.}
+
+\reportfigure{figures/sentence_classifier_scores.png}{0.72}
+{Sentence-level classifier scores. Macro-F1 is the main metric because the pseudo-labels are unevenly distributed.}
+
+\reportfigure{figures/sentence_classifier_confusion_embedding.png}{0.66}
+{Confusion matrix for the embedding logistic-regression sentence classifier.}
+
+The results show a clear ordering. The dictionary rule reaches macro-F1 0.526 on the
+pseudo-labelled sample. The \tfidf{} logistic classifier reaches 0.724, and the
+embedding logistic classifier reaches 0.765. Accuracy follows the same pattern:
+0.535, 0.718, and 0.768. These scores measure agreement with the pseudo-labels. The
+comparison is informative: sentence topics extend beyond exact dictionary hits. There is
+recoverable semantic structure around inflation, labor, financial conditions, and
+policy-decision language.
+
+\subsection{Applying the classifier to the corpus}
+
+After fitting the selected sentence classifier, I apply it to the full sentence corpus.
+When full sentence embeddings are available, I use the embedding classifier. Otherwise,
+the notebook falls back to the \tfidf{} classifier. In the results reported here, full
+embeddings are available and the full corpus is classified with the embedding logistic
+model. The resulting file
+\code{data/processed/fomc\_sentence\_topic\_predictions.csv} keeps the predicted topic,
+prediction confidence, date, year, document type, period, and election-window variables
+for each sentence.
+
+\reportfigure{figures/embedding_topic_shares_by_document_type.png}{0.78}
+{Predicted sentence-topic shares for statements and minutes. The classifier view keeps the inflation--labor contrast but adds financial conditions and policy-decision language.}
+
+\reportfigure{figures/embedding_topic_shares_over_time.png}{0.82}
+{Predicted sentence-topic shares over time. The figure focuses on inflation, labor, and financial conditions to keep the plot readable.}
+
+\reportfigure{figures/dictionary_vs_embedding_balance.png}{0.72}
+{Dictionary inflation-minus-labor balance against the classifier inflation-minus-labor sentence share. Each point is a meeting-document pair.}
+
+This full-corpus step is the bridge between the old score and the new classifier. The
+dictionary balance remains important because it has a direct interpretation. The
+classifier adds a second view: whether the same meeting looks inflation-heavy or
+labor-heavy after sentences are classified by broader semantic features. In the full
+corpus, the classifier predicts a large financial-conditions share, especially in
+minutes: 49.4\% of minutes sentences against 24.6\% of statement sentences. Statements
+have more sentences that combine both sides of the mandate, 17.9\% against 5.0\% in
+minutes. These levels partly reflect the pseudo-labels and the balanced training sample,
+so the strongest reading is comparative: statements compress the mandate language, while
+minutes contain more financial-conditions sentences and longer background discussion.
+
+\subsection{Election and institutional timing}
+
+Finally, I add a small calendar check. I mark presidential election years, midterm years,
+meetings within 90 days of a federal election, the first meeting of each year, even-year
+Board-cycle years, and Chair appointment or reappointment years. These variables are
+descriptive calendar markers for comparing topic mix around scheduled institutional and
+electoral dates.
+
+\reportfigure{figures/election_window_dictionary_balance.png}{0.72}
+{Dictionary balance inside and outside 90-day federal election windows. Points are meetings; diamonds are group means.}
+
+\reportfigure{figures/election_window_embedding_topics.png}{0.78}
+{Predicted sentence-topic shares inside and outside 90-day federal election windows.}
+
+The reason to include this check is simple. FOMC communication is public and scheduled,
+and some meetings occur close to major political events or institutional calendar points.
+A visible shift in the topic mix around those dates would be worth noticing. Here the
+comparison is descriptive, with a small sample and coarse timing. In this sample, the
+differences are small: the predicted topic shares inside and outside 90-day election
+windows are almost identical, and the dictionary balance changes little.
+
+\section{Discussion}
+\label{sec:discussion}
+
+The main result is simple. Statements and minutes allocate attention differently.
+Statements are short and more inflation-dominant. Minutes are longer, more diffuse, and
+closer to balance. The statement--minutes gap is itself informative because it shows how
+much the immediate policy message differs from the longer meeting account.
+
+This result is expected, and still informative. Inflation is the part of the dual mandate
+most directly tied to the Fed's credibility and to expectations. That makes it natural
+for statements to put inflation language in the foreground, especially when the Committee
+is explaining the policy decision. Labor-market language is still present, but it often
+works differently: it helps describe slack, demand, wages, and the cost of tightening.
+The two sides of the mandate are communicated through different textual roles.
+
+The dictionary checks make the measure easier to trust, but they also show its limits.
+The term \emph{inflation} matters a lot, and some terms are ambiguous. More importantly,
+the sentence labels show that some important sentences belong to a third category.
+Financial conditions, credit, market functioning, and liquidity form a separate topic in
+many crisis-period sentences. The balance score is therefore best read as a descriptive
+measure of inflation-versus-labor attention, while the sentence classifier adds the
+financial-conditions dimension.
+
+The rate-decision and period figures show that the balance moves in plausible
+directions. Hike meetings are more inflation-heavy than cut meetings, and the Covid shock
+is one of the clearest points where labor-market language becomes more visible. These are
+expected patterns, but seeing them in a simple text measure is informative. The figures
+describe associations in a small sample, with some periods containing few meetings.
+
+The low-rank \tfidf{} map gives a methodological lesson. Document format matters a lot.
+Models that pool statements and minutes can mainly learn the difference between a short
+public announcement and a long meeting summary. The sentence classifier addresses a
+different problem: it asks whether topic labels are learnable from sentence text and
+whether embeddings add something beyond exact dictionary terms. That makes embeddings a
+substantive part of the report.
+
+\section{Connection with the Companion Report}
+\label{sec:companion}
+
+This report and the companion hawkish/dovish report share the same corpus, but they
+measure different objects. The mandate balance asks what macro topic is emphasized:
+inflation or the labor market. The hawkish/dovish score asks what policy signal the text
+sends. Keeping the two dimensions separate avoids treating all inflation language as
+hawkish and all labor-market language as dovish.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this sample of 199 \fomc{} meetings, statements and minutes give different textual
+weights to the two sides of the dual mandate. Statements are much shorter and more
+inflation-dominant. Minutes are more balanced and contain a wider discussion. The
+sentence-level checks support this reading while keeping the limits of the dictionary
+visible. The sentence classifier adds the main ML/NLP result: inflation, labor,
+financial-conditions, and policy-decision sentences are partly learnable from text, and
+embeddings provide a way to measure those topics beyond exact keyword matches.
+
+The main finding combines a strong expected pattern with one important qualification.
+The expected pattern is that inflation language dominates, especially in statements. The
+qualification is that the inflation--labor contrast covers one part of the
+communication problem. In stress periods, financial conditions become central, and a
+pure dual-mandate dictionary misses that part of the story. For this report, the
+practical result is a readable pipeline: start with a transparent balance score, inspect
+the sentences behind it, use sentence pseudo-labels to train small classifiers, and
+compare the dictionary view with a broader sentence-topic view.
+
+\appendix
+
+\section{\tfidf{} Sanity Check}
+\label{app:tfidf}
+
+\reportfigure{figures/model_macro_f1.png}{0.90}
+{Macro-F1 scores for \tfidf{} models. The dashed line is the majority-class baseline.}
+
+A small \tfidf{} classification exercise remains in the appendix. The target is either
+the current rate decision or the next meeting's rate decision. The models are standard
+\tfidf{}+\logreg{} and \tfidf{}+\svm{} classifiers, compared with a majority-class
+baseline. The split is chronological: the first 70\% of meetings are used for training
+and the last 30\% for testing.
+
+The rate-decision scores remain modest. The majority baseline has macro-F1 0.222. For the current
+decision, the best model is \tfidf{}+\svm{} on full minutes, with macro-F1 0.418. For
+the next decision, the best model is again based on minutes, with macro-F1 0.396.
+
+This exercise is a small appendix check. The sample has 199 meetings, the classes are
+unbalanced, and minutes are released after the meeting. The main takeaway is smaller:
+minutes contain more decision-related context than statements, even though statements
+have a higher density of mandate terms.
+
+\section{Document-Level Embedding Check}
+\label{app:embeddings}
+
+\reportfigure{figures/embedding_dictionary_balance.png}{0.72}
+{Dictionary balance against embedding prototype balance.}
+
+\reportfigure{figures/embedding_pca_map.png}{0.72}
+{PCA map of local document embeddings. Color is the embedding prototype balance.}
+
+Before the sentence-level model, I also tried a small local embedding check with
+\code{nomic-embed-text}. Each document is represented by a short beginning/middle/end
+excerpt, and the document vector is compared with one inflation prototype phrase and one
+labor-market prototype phrase. This document-level view is noisier than the sentence
+classifier, especially for minutes, so I keep it in the appendix. It points to the same
+message as the LSA map: statements and minutes are different document formats. The main
+embedding result in the report is now the sentence-level classifier in
+\cref{sec:sentence-classifier}.
+
+\newpage
+
+\begin{thebibliography}{99}
+
+\bibitem[Acosta and Meade(2015)]{acosta2015hanging}
+Acosta, M., and Meade, E. E.
+\newblock Hanging on every word: Semantic analysis of the FOMC's postmeeting statement.
+\newblock \emph{FEDS Notes}, Board of Governors of the Federal Reserve System, 2015.
+
+\bibitem[Blinder et~al.(2008)]{blinder2008central}
+Blinder, A. S., Ehrmann, M., Fratzscher, M., De Haan, J., and Jansen, D.-J.
+\newblock Central bank communication and monetary policy: A survey of theory and evidence.
+\newblock \emph{Journal of Economic Literature}, 46(4):910--945, 2008.
+
+\bibitem[Deerwester et~al.(1990)]{deerwester1990indexing}
+Deerwester, S., Dumais, S. T., Furnas, G. W., Landauer, T. K., and Harshman, R.
+\newblock Indexing by latent semantic analysis.
+\newblock \emph{Journal of the American Society for Information Science}, 41(6):391--407, 1990.
+
+\bibitem[Doh et~al.(2021)]{doh2021matters}
+Doh, T., Kim, S., and Yang, S.-K.
+\newblock How you say it matters: Text analysis of FOMC statements using natural language processing.
+\newblock \emph{Economic Review, Federal Reserve Bank of Kansas City}, 106(1):25--40, 2021.
+
+\bibitem[Doh et~al.(forthcoming)]{doh2025deciphering}
+Doh, T., Song, D., and Yang, S.-K.
+\newblock Deciphering Federal Reserve communication via text analysis of alternative FOMC statements.
+\newblock \emph{American Economic Journal: Macroeconomics}, forthcoming.
+
+\bibitem[Gentzkow et~al.(2019)]{gentzkow2019text}
+Gentzkow, M., Kelly, B., and Taddy, M.
+\newblock Text as data.
+\newblock \emph{Journal of Economic Literature}, 57(3):535--574, 2019.
+
+\bibitem[Hansen et~al.(2018)]{hansen2018transparency}
+Hansen, S., McMahon, M., and Prat, A.
+\newblock Transparency and deliberation within the FOMC: A computational linguistics approach.
+\newblock \emph{The Quarterly Journal of Economics}, 133(2):801--870, 2018.
+
+\bibitem[Loughran and McDonald(2011)]{loughran2011liability}
+Loughran, T., and McDonald, B.
+\newblock When is a liability not a liability? Textual analysis, dictionaries, and 10-Ks.
+\newblock \emph{Journal of Finance}, 66(1):35--65, 2011.
+
+\bibitem[Shapiro and Wilson(2022)]{shapiro2022taking}
+Shapiro, A. H., and Wilson, D. J.
+\newblock Taking the Fed at its word: A new approach to estimating central bank objectives using text analysis.
+\newblock \emph{The Review of Economic Studies}, 89(5):2768--2805, 2022.
+
+\bibitem[Tadle(2022)]{tadle2022minutes}
+Tadle, R. C.
+\newblock FOMC minutes sentiments and their impact on financial markets.
+\newblock \emph{Journal of Economics and Business}, 118:106021, 2022.
+
+\end{thebibliography}
+
+\end{document}
