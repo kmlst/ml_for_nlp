@@ -1,0 +1,72 @@
+% Lightweight local NeurIPS-style package for this academic report.
+% It follows the visual conventions of the NeurIPS conference template
+% closely enough for local compilation without requiring the official files.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{neurips_2024}[2024/01/01 NeurIPS-like local style]
+
+\newif\if@preprint
+\newif\if@final
+\DeclareOption{preprint}{\@preprinttrue}
+\DeclareOption{final}{\@finaltrue}
+\ProcessOptions\relax
+
+\RequirePackage[margin=1in]{geometry}
+\RequirePackage{times}
+\RequirePackage{fancyhdr}
+\RequirePackage{natbib}
+\RequirePackage{url}
+\RequirePackage{xcolor}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\headheight}{14pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small FOMC signal analysis}
+\rhead{\small NeurIPS style report}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\neuripsfinalcopy}{\@finaltrue}
+
+\renewcommand{\maketitle}{%
+  \begin{center}
+    {\LARGE \bfseries \@title \par}
+    \vskip 0.3in
+    {\large \@author \par}
+    \vskip 0.15in
+    \if@preprint
+      {\small Preprint. Work in progress for an academic NLP project.}
+    \else
+      {\small Conference-style report.}
+    \fi
+  \end{center}
+  \vskip 0.2in
+}
+
+\renewenvironment{abstract}{%
+  \vskip 0.075in
+  \centerline{\large\bf Abstract}
+  \vspace{0.5ex}
+  \begin{quote}
+}{%
+  \end{quote}
+  \vskip 0.1in
+}
+
+\renewcommand{\section}{\@startsection{section}{1}{0pt}%
+  {-2.0ex plus -0.5ex minus -0.2ex}%
+  {1.0ex plus 0.2ex}%
+  {\large\bfseries}}
+
+\renewcommand{\subsection}{\@startsection{subsection}{2}{0pt}%
+  {-1.5ex plus -0.4ex minus -0.2ex}%
+  {0.8ex plus 0.2ex}%
+  {\normalsize\bfseries}}
+
+\renewcommand{\subsubsection}{\@startsection{subsubsection}{3}{0pt}%
+  {-1.0ex plus -0.3ex minus -0.2ex}%
+  {0.5ex plus 0.2ex}%
+  {\normalsize\bfseries}}
+
