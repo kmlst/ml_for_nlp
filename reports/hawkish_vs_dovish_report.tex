@@ -26,108 +26,58 @@ Machine Learning for NLP}
 \maketitle
 
 \begin{abstract}
-Central bank communication is an instrument of monetary policy because it shapes
-expectations beyond the current rate decision. This paper measures the
-hawkish/dovish signal in Federal Open Market Committee (FOMC) statements and
-minutes from 2000 to 2024. The main model is an interpretable monetary-policy
-dictionary that contrasts language associated with inflation pressure,
-restriction and tightening with language associated with easing, downside risk
-and labor-market weakness. The lexical measure is complemented by decision-masked
-scores, sentence-level tagging, TF-IDF classification benchmarks, dictionary
-sensitivity checks, Latent Semantic Analysis (LSA), and a Sentence-BERT prototype
-check. The resulting signal is strongly aligned with rate hikes, becomes less
-hawkish in high-volatility periods, and shows little descriptive difference around
-election windows. Minutes are not a mechanical repetition of statements: average
-statement-minute differences are modest, but several meetings display large
-document-level gaps. The embedding checks show that dense semantic representations
-capture broader document structure and monetary episodes, while the dictionary
-remains the most directly interpretable measure of the policy signal.
+
+Central bank communication is a key channel through which monetary policy affects expectations beyond actual interest-rate decisions. This paper studies how the Federal Open Market Committee (FOMC) 
+conveys hawkish and dovish signals in its \textit{Statements} and \textit{Minutes} between 2000 and 2024. We construct a domain-specific dictionary that contrasts terms associated with inflation pressures, 
+tightening, and upside risks with terms related to easing, downside risks, and labor-market weakness. The resulting tone score is computed at both document and sentence level, and is evaluated through 
+several robustness checks, including the masking of explicit rate-decision sentences, dictionary sensitivity tests, TF-IDF classification benchmarks, latent semantic analysis, and Sentence-BERT embeddings.
+The results show that hawkish language is substantially stronger during rate-hike meetings, while high-volatility periods are associated with a more dovish tone. By contrast, meetings around U.S. elections 
+do not display systematic differences. \textit{Statements} and \textit{Minutes} have similar average tone, but some meetings exhibit large document-level gaps, suggesting that \textit{Minutes} often add 
+nuance to the immediate policy message. Finally, embedding-based representations capture broader semantic and macroeconomic structure, but they do not reproduce the dictionary-based hawkish/dovish axis 
+without supervision. Overall, the results support the use of interpretable, domain-specific lexical measures for tracking monetary-policy tone, while highlighting the limits of generic embeddings for 
+measuring such a targeted economic concept.
+
 \end{abstract}
 
 \section{Introduction}
 
-The Federal Reserve does not only move the federal funds rate. It also explains
-economic conditions, signals risks, and manages expectations about the future path
-of policy. This communication channel is especially visible after FOMC meetings,
-when the Committee publishes a short statement, followed several weeks later by
-more detailed minutes. These documents are official, recurrent, and closely read
-by financial markets. They are therefore a natural corpus for studying monetary
-policy communication with natural language processing.
+The mandate of the Federal Reserve is dual: it must contain inflation while maintaining a dynamic labor market. To achieve this, it has at its disposal monetary policy tools, notably the management of policy interest rates. 
+Its mission also consists of describing economic conditions, signaling risks, and guiding expectations regarding the future path of monetary policy. This communication channel is particularly visible at the conclusion of meetings of 
+the Federal Open Market Committee (FOMC), when the Committee releases a short Statement, followed several weeks later by more detailed records (\textit{Minutes}). These documents are official, published on a 
+recurring basis, and closely analyzed by financial markets. They therefore constitute a natural corpus for studying monetary policy communication using NLP methods.
+This article poses a \textit{text-as-data} question: to what extent do FOMC communications convey a ``hawkish'' or ``dovish'' signal, and how does this signal vary depending on the type of 
+document (\textit{Statements} / \textit{Minutes}), rate decisions (\textit{Cut} / \textit{Hold} / \textit{Hike}), financial market volatility, electoral periods, and macroeconomic regimes? A ``hawkish'' signal emphasizes inflation, 
+price pressures, restrictive financial conditions, monetary tightening, or higher interest rates. Conversely, a ``dovish'' signal highlights support for economic activity, labor market weakness, monetary easing, lower interest rates, 
+or downside macroeconomic risks.
 
-This paper asks a text-as-data question: to what extent do FOMC communications
-send a hawkish or dovish signal, and how does this signal vary across document
-types, rate decisions, market volatility, election periods, and macroeconomic
-regimes? A hawkish signal emphasizes inflation, price pressure, restrictive
-conditions, tightening, or higher rates. A dovish signal emphasizes support to
-activity, labor-market weakness, easing, lower rates, or downside risks.
-
-The object of interest is latent. It is not directly observed in the data; it must
-be inferred from words, phrases and document structure. The paper therefore
-combines an interpretable dictionary model with robustness checks based on
-standard NLP representations. The dictionary score is the core measure because it
-maps transparently to monetary-policy concepts. TF-IDF classifiers test whether
-rate-decision information is also recoverable from a more flexible bag-of-words
-representation. LSA and Sentence-BERT embeddings test whether dense semantic
-geometry produces a similar hawkish/dovish ordering or instead captures broader
-institutional and macroeconomic structure.
-
-The results are descriptive rather than causal. They show that hike meetings are
-substantially more hawkish than hold or cut meetings, and that high VIX meetings
-are associated with a less hawkish tone. Election windows do not display a strong
-average difference. Statements and minutes have similar average tone, but
-meeting-level distances can be large, which suggests that the minutes often
-contextualize or qualify the immediate post-meeting message. Finally, combining
-the hawkish/dovish score with an inflation/employment balance highlights that
-diagnosis and policy signal are related, especially in minutes, but are not the
-same textual object.
-
-The contribution is threefold. First, the paper builds a reproducible pipeline
-that aligns FOMC statements and minutes by meeting and enriches them with
-financial, political and macroeconomic context. Second, it proposes a transparent
-measure of monetary-policy tone that can be inspected at the document and sentence
-levels. Third, it compares this handcrafted measure with more flexible text
-representations. This comparison is useful because it separates two tasks that are
-often conflated: measuring an economically defined concept and predicting a
-policy-decision label from text.
+The object of interest (the ``hawkish''/``dovish'' signal) is latent: it is not directly observed in the data and must be inferred from words, expressions, and the structure of documents. We use a dictionary-based measure as the 
+main estimator and compare it with TF-IDF, LSA, and Sentence-BERT representations. The dictionary score constitutes the central measure, as it corresponds transparently to well-defined economic concepts. 
+TF-IDF classifiers assess whether information related to rate decisions can also be extracted from a more flexible \textit{bag-of-words} representation. Semantic representations derived from latent semantic analysis (LSA) 
+and Sentence-BERT, in turn, examine whether a dense semantic geometry produces a similar ``hawkish/dovish'' ranking or instead captures a broader institutional and macroeconomic structure.
+The results presented in this article are descriptive rather than causal. They show that meetings associated with policy rate increases are clearly more ``hawkish'' than those with no change or with rate cuts (as expected), 
+and that meetings characterized by a high level of financial volatility, measured by the VIX index, are associated with a less ``hawkish'' tone (also expected, since volatility is negatively correlated with market returns; thus, 
+periods of crisis or weak growth tend to be associated with higher volatility). Electoral periods do not exhibit a marked average difference. The \textit{Statements} and the \textit{Minutes} display a similar average tone, 
+but differences at the level of individual meetings can be substantial, suggesting that the minutes often contextualize or nuance the immediate message released after the meeting. Finally, combining the ``hawkish/dovish'' score 
+with an inflation--employment balance indicator shows that the economic diagnosis and the monetary policy signal are closely linked—particularly in the \textit{Minutes}—without constituting the same textual object.
+The paper makes three contributions. First, it constructs a reproducible processing pipeline that systematically aligns FOMC \textit{Statements} and \textit{Minutes} by meeting and enriches them with financial, 
+political, and macroeconomic context. Second, it proposes a transparent and interpretable measure of monetary policy tone that can be applied at both the document and sentence levels. Third, it compares this manually constructed 
+measure with more flexible text representations derived from machine learning. This comparison separates two tasks that are often conflated: measuring a predefined economic concept and predicting rate-decision labels from text.
 
 \section{Related Work}
-
-Central bank communication has become a central component of monetary policy.
-\citet{blinder2008communication} review the theoretical and empirical evidence and
-argue that communication can make policy more predictable, affect asset prices and
-shape expectations. This motivates treating FOMC texts as economic data rather
-than as purely institutional narrative.
-
-Several papers use computational methods to study FOMC communication.
-\citet{lucca2009measuring} build automated measures of FOMC statement content and
-show that long-term interest rates react to communication surprises. Their result
-is important for the present study because the same rate decision can be
-accompanied by different language about the future stance of policy.
-\citet{hansen2018transparency} apply computational linguistics to FOMC transcripts
-and show that transparency changes deliberation and communication patterns. This
-paper focuses instead on the public and regularly available statements and
-minutes, but it follows the same idea that monetary communication can be measured
-systematically.
-
-The paper also follows the broader text-as-data literature. \citet{gentzkow2019text}
-emphasize that textual analysis requires explicit choices about representation,
-measurement and validation. \citet{loughran2011liability} show that generic
-sentiment dictionaries can be misleading in financial corpora, where common words
-may have domain-specific meaning. This is why the main measure here is not a
-positive/negative sentiment index, but a monetary-policy tone index. The
-embedding checks draw on Latent Semantic Analysis \citep{deerwester1990indexing}
-and Sentence-BERT \citep{reimers2019sentencebert}, which provide alternative
-semantic representations of the same documents.
-
-This paper is closest to dictionary-based work in spirit, but it uses machine
-learning representations as diagnostics rather than as the main estimator. That
-choice reflects a practical constraint of the corpus. The sample is small by
-modern NLP standards: after alignment, the unit of analysis is fewer than two
-hundred meetings. Without expert sentence labels, a fully supervised
-hawkish/dovish classifier would risk learning period-specific language or the
-format of the documents instead of the underlying policy signal. A dictionary is
-less flexible, but it provides a clear link between the measured score and the
-economic vocabulary used to construct it.
+Over the past decades, central bank communication has become an instrument of monetary policy in its own right. \citet{blinder2008communication} review the theoretical and empirical evidence and argue that communication 
+can make policy more predictable, influence asset prices, and shape expectations. This literature has helped establish the idea that FOMC texts can be analyzed as economic data rather than as a simple institutional narrative.
+Several articles use computational methods to study FOMC communication. \citet{lucca2009measuring} construct automated measures of the content of FOMC statements and show that long-term interest rates respond to communication surprises. 
+This result is particularly relevant for our study, as the same rate decision can be accompanied by different language regarding the future orientation of monetary policy. \citet{hansen2018transparency} apply NLP methods to FOMC 
+transcripts and show that transparency alters patterns of deliberation and communication. Our article instead focuses on Statements and Minutes, which are regularly available and comparable over time, but it is grounded in the same 
+perspective that monetary communication can be measured systematically.
+The article also fits within the broader \textit{text-as-data} literature. \citet{gentzkow2019text} emphasize that textual analysis requires explicit choices regarding representation, measurement, 
+and validation. \citet{loughran2011liability} show that generic sentiment dictionaries can be misleading in financial corpora, where common words may have domain-specific meanings. For this reason, the main measure proposed here 
+is not an index of positive/negative sentiment, but rather an index of monetary policy tone. The embedding-based checks rely on latent semantic analysis \citep{deerwester1990indexing} and on 
+Sentence-BERT \citep{reimers2019sentencebert}, which provide alternative semantic representations of the same documents.
+This article is methodologically close to dictionary-based approaches, while using machine learning representations as diagnostic tools rather than as the primary estimator. This choice reflects an empirical constraint specific 
+to the corpus. The sample is relatively small by current NLP standards: after alignment, the unit of analysis comprises fewer than two hundred meetings. In the absence of expert-labeled sentences, a fully supervised ``hawkish/dovish'' 
+classifier would risk learning language specific to particular periods or document formats rather than the underlying monetary policy signal. A dictionary is admittedly less flexible, but it provides a direct and interpretable link 
+between the measured score and the economic vocabulary used to construct it.
 
 \section{Data}
 
@@ -153,7 +103,7 @@ classified as \emph{hike}, \emph{hold} or \emph{cut}. The sample contains 59 hik
 \toprule
 Document type & Meetings & Mean words & Median words & Mean sentences & Date range \\
 \midrule
-Statement & 199 & 526.1 & 536.0 & 26.8 & 2000--2024 \\
+Statements & 199 & 526.1 & 536.0 & 26.8 & 2000--2024 \\
 Minutes & 199 & 7282.7 & 7518.0 & 311.9 & 2000--2024 \\
 \bottomrule
 \end{tabular}
@@ -163,28 +113,19 @@ Table \ref{tab:corpus} shows the large difference in document length. Minutes ar
 roughly fourteen times longer than statements on average. This makes length
 normalization essential and also explains why statements and minutes should not be
 expected to carry the same kind of signal. Statements are calibrated policy
-messages; minutes are richer institutional summaries.
+messages while minutes are richer institutional summaries.
 
 \subsection{Alignment and Preprocessing}
 
-The raw corpus is organized around FOMC meeting dates. Statements and minutes are
-kept as separate fields and then aligned by meeting date. The preprocessing is
-deliberately conservative. Text is lowercased for counting, whitespace is
-normalized, and recurring web-page fragments such as navigation text, update
-footers and accessibility notices are stripped when they appear. The analysis does
-not remove economically meaningful stopwords from the dictionary scores, because
-several multi-word expressions depend on local syntax, for example \emph{higher
-rates}, \emph{downside risks} and \emph{price stability}. Stopword removal is used
-only in the TF-IDF benchmark, where the goal is predictive comparison rather than
-direct term accounting.
-
-Documents are also segmented into sentences. Sentence segmentation serves two
-purposes. It makes it possible to mask sentences that explicitly announce the
-rate decision, and it allows a sentence-level audit of the dictionary. This step is
-important because a document-level count can hide the fact that a few repeated
-words drive the score. Sentence tags make the measure easier to interpret: a
-hawkish document should contain identifiable hawkish sentences, not only isolated
-tokens.
+The raw corpus is organized around the dates of FOMC meetings. Statements and meeting records, i.e. Minutes, are stored in separate fields and then systematically aligned by meeting date. 
+Preprocessing is deliberately conservative in order to preserve as much of the original textual information as possible. Text is converted to lowercase for counting purposes, whitespace is normalized, and recurring fragments 
+originating from web pages (such as navigation menus, update notices, and accessibility statements) are removed when they appear. These steps remove recurring webpage noise while preserving monetary-policy content.
+The analysis does not remove stopwords that are economically meaningful in the computation of dictionary scores, because several compound expressions depend on local syntax, for example \textit{higher rates}, \textit{downside risks}, 
+and \textit{price stability}. Stopword removal is used only in the TF-IDF benchmark, where the objective is predictive comparison rather than direct term counting. This distinction reflects the conceptual difference between an 
+interpretable dictionary-based measure and a statistical representation designed to maximize classification performance.
+Documents are also segmented into sentences. Sentence segmentation serves two main functions. First, it allows the masking of sentences that explicitly announce the rate decision, in order to prevent the textual score from 
+mechanically reflecting monetary policy information that is already observed. Second, it enables a dictionary audit at the sentence level by precisely identifying the text segments that contribute to the final score. 
+Sentence-level labels guard against scores driven by a few repeated terms and make the document-level measure easier to audit.
 
 \begin{table}[t]
 \centering
@@ -208,28 +149,26 @@ report macro-F1, which gives equal weight to the three decision classes.
 
 \subsection{Contextual Variables}
 
-The empirical analysis adds three sets of contextual variables. First, daily VIX
-data are retrieved from Cboe \citep{cboevix}. For each FOMC meeting, the VIX is
-averaged over a window from five days before to five days after the meeting; the
-upper quartile defines high-volatility meetings. Second, election windows are
-defined as meetings within 90 days of U.S. presidential or midterm elections.
-Third, meetings are assigned to broad macro-financial regimes: the early-2000s
-easing cycle, the global financial crisis, the zero lower bound period, the
-2015--2019 normalization, the Covid crisis, the post-Covid inflation period, and a
-baseline category for the remaining meetings.
+In our empirical analysis, we introduce three sets of contextual variables. First, daily data on the VIX volatility index are obtained from Cboe. For each FOMC meeting, the VIX is averaged over a window ranging from 
+five days before to five days after the meeting; the upper quartile of this distribution defines meetings characterized by high financial volatility. This measure is intended to capture episodes of market stress that may influence 
+the tone of monetary communication independently of rate decisions.
+Second, electoral periods are defined as meetings held within the 90 days preceding a U.S. presidential election or midterm elections. This 
+variable tests whether policy language changes near politically sensitive dates, without assuming strategic behavior.
 
-These contextual variables are not used to identify causal effects. They are used
-to organize the descriptive results and to check whether the textual signal moves
-in economically plausible ways. For example, a useful tone measure should be more
-hawkish around hikes than around cuts, but it should also reveal more nuanced
-patterns in stress periods, when the Fed can discuss inflation risks while
-simultaneously emphasizing financial fragility or downside risks.
+Third, meetings are also classified according to broad macro-financial regimes corresponding to distinct phases of monetary policy and the macroeconomic environment. These regimes include: (i) the early-2000s easing cycle, marked 
+by the slowdown following the burst of the dot-com bubble; (ii) the global financial crisis of 2008--2009, characterized by systemic financial instability and emergency policy measures; (iii) the zero lower bound (\textit{ZLB}) period, 
+during which policy rates remained close to zero and monetary policy relied more heavily on unconventional instruments; (iv) the normalization phase of 2015--2019, associated with a gradual recovery in economic activity and a 
+progressive tightening of monetary policy; (v) the Covid-19 crisis in 2020, marked by a sharp economic shock and exceptional monetary interventions; (vi) the post-Covid inflation period beginning in 2021, characterized by persistent 
+inflation acceleration and a rapid cycle of monetary tightening; and (vii) a reference category grouping other meetings that do not fall explicitly within these major episodes.
+These contextual variables are not used to identify causal effects. Rather, they serve to structure the descriptive analysis and to verify whether the textual signal evolves in an economically coherent manner. For example, a 
+meaningful measure of tone should be more ``hawkish'' during rate hikes than during rate cuts, but it should also reveal more nuanced patterns during periods of stress, when the Federal Reserve may refer to inflationary risks while 
+simultaneously emphasizing financial fragility or downside macroeconomic risks.
 
-\section{Methodology}
+\section{Methodology and Results}
 
 \subsection{Dictionary Tone Score}
 
-The main model is an expert-guided dictionary score. Let $H_{d,t}$ and $D_{d,t}$
+The main model is a dictionary score. Let $H_{d,t}$ and $D_{d,t}$
 denote the length-normalized counts of hawkish and dovish terms in document
 $d$ for meeting $t$:
 \begin{equation}
@@ -265,63 +204,33 @@ this is rare for FOMC texts.
 
 \subsection{Choice of Model Family}
 
-The dictionary score is not meant to be the most predictive possible model. It is
-chosen because the research question is measurement-oriented. The paper aims to
-construct an interpretable series that can be compared across meetings and
-document types. For this goal, a transparent score is preferable to a black-box
-classifier trained on a small sample.
-
-The additional NLP models answer different questions. TF-IDF with linear models
-tests whether the text contains enough information to recover the observed rate
-decision. LSA tests whether documents that are semantically close in a reduced
-bag-of-words space also look similar on the policy-tone axis. Sentence-BERT tests
-whether contextual embeddings, without task-specific fine-tuning, align with the
-same hawkish/dovish prototype contrast. The models are therefore complementary:
-the dictionary measures an economic concept, while TF-IDF and embeddings evaluate
-how stable that concept is under alternative representations of the corpus.
+The dictionary score is selected as the primary model because the research question is explicitly oriented toward measurement rather than prediction. The article aims to construct an interpretable time series of monetary policy 
+tone that is comparable across meetings and across document types. For this objective, a transparent and stable measure is preferable to a ``black-box'' classifier trained on a relatively limited sample.
+The additional natural language processing models address distinct methodological questions. TF-IDF, combined with linear models, tests whether the text contains sufficient information to predict the observed rate decision, 
+independently of the interpretable structure of the dictionary. Latent semantic analysis (LSA) examines whether documents that are semantically close in a reduced \textit{bag-of-words} space also appear similar along the dimension 
+of monetary policy tone. Sentence-BERT evaluates whether pre-trained contextual embeddings, without task-specific adjustment (\textit{fine-tuning}), spontaneously align with the same ``hawkish/dovish'' prototype contrast.
+These approaches are therefore complementary rather than competing. The dictionary is designed to measure an economic concept defined \textit{a priori}, while TF-IDF and embeddings serve as validation and diagnostic tools, making 
+it possible to assess the robustness and coherence of this measure under alternative representations of the corpus.
 
 \subsection{Validation and Robustness Checks}
 
-Four checks are used to assess whether the dictionary captures a meaningful policy
-signal.
-
-First, a masked score removes sentences that directly announce the rate decision.
-This tests whether the tone is only a restatement of ``the Committee raised the
-target range'' or whether it also appears in the surrounding diagnosis and
-justification.
-
-Second, a sentence-level version tags each sentence as hawkish, dovish, mixed or
-neutral according to dictionary hits. This provides a qualitative audit and a
-document-level share of policy-relevant sentences.
-
-Third, TF-IDF benchmarks classify the rate decision from the text. Logistic
-regression and linear SVM models are trained on chronological splits, using earlier
-meetings for training and later meetings for testing. This split is stricter than
-a random split because monetary-policy language changes over time. Models are run
-on full, decision-masked and boilerplate-stripped text for statements and minutes.
-The TF-IDF representation uses unigrams and bigrams, English stopword removal, a
-minimum document frequency of two, and a maximum vocabulary of 6,000 features. The
-test set contains the last 30\% of meetings, covering June 2017 to December 2024;
-the training set covers February 2000 to May 2017.
-
-Fourth, dense representations are used as semantic robustness checks. LSA is
-computed by applying truncated SVD to a TF-IDF matrix of document excerpts. A
-prototype tone is then defined as cosine similarity to a hawkish prototype minus
-cosine similarity to a dovish prototype. Sentence-BERT uses the same prototype
-logic with contextual embeddings from \texttt{all-MiniLM-L6-v2}. These embedding
-scores are not treated as replacements for the dictionary; they test whether a
-less hand-engineered semantic space produces a related ordering.
-
-Finally, the paper uses a simple pooled OLS model as a descriptive check. The
-dependent variable is the tone score for each document. The explanatory variables
-are document type, rate-decision dummies, standardized VIX and an election-window
-indicator. The model is not interpreted structurally. It is a compact way to see
-whether the associations visible in the figures remain present when these
-dimensions are included together.
-
-\section{Results}
-
-\subsection{The Tone Signal Over Time}
+Four main checks are implemented to assess whether the dictionary captures an economically meaningful monetary policy signal.
+First, a masked score removes sentences that explicitly announce the rate decision. This procedure makes it possible to test whether the measured tone merely restates the decision—for example, 
+``the Committee raised the target range''—or whether it also appears in the economic assessment and justification surrounding that decision. The objective is to prevent the measure from mechanically reflecting information that 
+is already observed.
+Second, a sentence-level version assigns each sentence a label—``hawkish,'' ``dovish,'' mixed, or neutral—based on dictionary occurrences. This approach provides both a qualitative analysis of document content and a 
+quantitative measure, at the document level, of the proportion of sentences relevant to monetary policy. It also strengthens the interpretability of the score by explicitly identifying the textual segments that contribute to 
+the measured tone.
+Third, TF-IDF benchmarks evaluate whether the rate decision can be predicted from the text. Logistic regression and linear SVM models are trained using chronological splits, with earlier meetings used for training and later 
+meetings used for out-of-sample evaluation. This temporal split is more demanding than a random split, because the language of monetary policy evolves over time. Models are estimated on full texts, texts masking the decision, 
+and texts stripped of standardized elements (\textit{boilerplate}), for both \textit{Statements} and \textit{Minutes}. The TF-IDF representation uses unigrams and bigrams, stopword removal, a minimum document frequency of two, and 
+a maximum vocabulary size of 6\,000 features. The test set consists of the most recent 30\% of meetings, covering the period from June 2017 to December 2024, while the training set covers the period from February 2000 to May 2017.
+Fourth, dense representations are used as semantic robustness checks. Latent semantic analysis (LSA) is computed by applying truncated singular value decomposition (SVD) to a TF-IDF matrix of document excerpts. A tone score is 
+then defined as the difference between cosine similarity with a ``hawkish'' prototype and cosine similarity with a ``dovish'' prototype. Sentence-BERT applies the same prototype logic to contextual embeddings generated by 
+the \texttt{all-MiniLM-L6-v2} model. These embedding-based scores serve as robustness checks to determine whether a semantic space less constrained by manual construction produces a comparable ranking of documents.
+Finally, the study uses a pooled ordinary least squares (\textit{pooled OLS}) regression model as a synthetic descriptive check. The dependent variable is the tone score for each document. Explanatory variables include 
+document type, indicator variables for rate decisions, the standardized VIX, and an electoral period indicator. This model is a descriptive tool intended to verify whether the associations observed in the figures remain present 
+when these different dimensions are taken into account simultaneously.
 
 \begin{figure}[t]
 \centering
@@ -332,8 +241,7 @@ dimensions are included together.
 
 Figure \ref{fig:tone_time} shows that the average tone is positive in both
 document types. The mean normalized score is 0.484 for statements and 0.507 for
-minutes. This does not mean that the Fed is always tightening. It means that, over
-the full sample, language related to inflation, price pressure and restrictive
+minutes. This means that, over the full sample, language related to inflation, price pressure and restrictive
 conditions is more frequent than language related to easing or weakness. The score
 falls in the early 2000s and in crisis periods, then rises during the 2015--2019
 normalization and the post-Covid inflation episode.
@@ -341,10 +249,10 @@ normalization and the post-Covid inflation episode.
 The masked score is very close to the main score: the means are 0.474 for
 statements and 0.501 for minutes. The policy signal is therefore not driven only
 by direct decision sentences. The same gradient appears at sentence level:
-policy-relevant sentences account for about 31.0\% of statement sentences and
-29.7\% of minute sentences, and their balance is highest during hike meetings.
+policy-relevant sentences account for about 31.0\% of statements sentences and
+29.7\% of minutes sentences, and their balance is highest during hike meetings.
 
-The time series also illustrates why a single average score is not enough. During
+The time series shows why average tone alone is insufficient. During
 the zero lower bound period, policy was highly accommodative, yet the documents
 continued to discuss price stability and inflation expectations. During the
 post-Covid inflation period, the language becomes more directly hawkish because
@@ -367,7 +275,7 @@ accommodation language, not to whether the economic outlook is described as
 \begin{subfigure}{0.48\textwidth}
 \centering
 \includegraphics[width=\textwidth]{statement_minutes_tone_distance.png}
-\caption{Statement-minute distance.}
+\caption{Statements-minutes distance.}
 \end{subfigure}
 \caption{Document tone by rate decision and meeting-level distance between
 statements and minutes.}
@@ -389,30 +297,30 @@ episodes emphasize weakness, downside risks and support more than hike minutes d
 \toprule
 Document type & Cut & Hold & Hike \\
 \midrule
-Statement & 0.418 & 0.384 & 0.705 \\
+Statements & 0.418 & 0.384 & 0.705 \\
 Minutes & 0.368 & 0.442 & 0.700 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The statement-minute distance is
+The statements-minutes distance is
 \begin{equation}
 \text{DistanceTone}_{t} =
-|\text{ToneNorm}_{minutes,t}-\text{ToneNorm}_{statement,t}|.
+|\text{ToneNorm}_{minutes,t}-\text{ToneNorm}_{statements,t}|.
 \end{equation}
 Its mean is 0.163 and its median is 0.122. A paired comparison does not indicate a
 large systematic difference in average tone between statements and minutes, but
 the meeting-level distribution is informative. Several meetings, especially in
-the early-2000s easing cycle, display large gaps. In those cases, the statement
+the early-2000s easing cycle, display large gaps. In those cases, the Statement
 can be strongly dovish while the minutes remain more balanced because they record
 competing risks or a more detailed debate.
 
-This distinction is conceptually important. Statements are written as coordinated
+Statements and Minutes differ not only in length but also in function. Statements are written as coordinated
 public signals. They must summarize the Committee's decision in a compact and
 market-readable form. Minutes, by contrast, are designed to document the reasoning
 behind the decision. They can contain hawkish and dovish arguments in the same
 document, especially when the Committee faces a trade-off between inflation
-concerns and real-activity weakness. A large statement-minute distance should
+concerns and real-activity weakness. A large statements-minutes distance should
 therefore not be interpreted automatically as inconsistency. It is better read as
 evidence that the later document adds nuance to the immediate signal.
 
@@ -441,15 +349,15 @@ minutes. In high-VIX meetings, the averages fall to 0.311 and 0.382. This patter
 is consistent with the Fed using more dovish or support-oriented language during
 episodes of financial stress. In contrast, election windows show little average
 difference: statement tone is 0.494 outside election windows and 0.459 inside
-them; minute tone is 0.511 outside and 0.497 inside.
+them; tone in Minutes is 0.511 outside and 0.497 inside.
 
 The macro-regime analysis is consistent with the time series. The normalization
 period and the post-Covid inflation period are among the most hawkish regimes.
 The Covid period and the early-2000s easing cycle are less hawkish. The global
 financial crisis is not the most dovish regime in the dictionary score because
 those documents also contain frequent references to inflation, price stability and
-financial strains. This illustrates an important point: a text can describe severe
-weakness while still preserving an inflation-risk vocabulary.
+financial strains. The global financial crisis shows that weakness language and 
+inflation-risk language can coexist in the same document.
 
 The absence of a strong election-window pattern is also informative. In this
 descriptive design, the tone series does not suggest an obvious shift in the
@@ -489,8 +397,8 @@ not statistically significant, consistent with the paired comparison. The electi
 coefficient is essentially zero in this specification.
 
 The cut coefficient is small in the pooled specification, even though cut minutes
-are visibly less hawkish in the grouped averages. This is a useful reminder that
-rate cuts are heterogeneous. Some cuts occur in crisis periods dominated by
+are visibly less hawkish in the grouped averages. The small cut coefficient reflects 
+heterogeneity across easing episodes. Some cuts occur in crisis periods dominated by
 support and downside-risk language; others occur when inflation concerns have not
 fully disappeared. The tone score therefore captures the communication
 surrounding the decision, not only the sign of the rate change.
@@ -519,7 +427,7 @@ present in the text beyond the handcrafted score. The best chronological test
 performance is obtained with minutes and a linear SVM: 0.550 accuracy and 0.407
 macro-F1. The same model on masked minutes reaches the same accuracy and 0.401
 macro-F1, which again suggests that the decision signal is not confined to the
-explicit announcement sentence. Statement models perform worse, with the best
+explicit announcement sentence. Models trained on Statements perform worse, with the best
 macro-F1 around 0.333. This gap is plausible because statements are short and
 formulaic, while minutes contain more evidence about the economic reasoning behind
 the decision.
@@ -545,7 +453,7 @@ small dictionary changes. The ordering by rate decision remains stable.
 \label{tab:robustness}
 \begin{tabular}{p{0.30\textwidth}p{0.24\textwidth}p{0.24\textwidth}}
 \toprule
-Check & Statement result & Minutes result \\
+Check & Statements result & Minutes result \\
 \midrule
 Masked mean tone & 0.474 & 0.501 \\
 Strict dictionary correlation with main score & 0.839 & 0.935 \\
@@ -579,26 +487,23 @@ for minutes. This positive but moderate relationship suggests that LSA captures
 some policy-tone information, especially in short statements, while minutes'
 dense geometry is shaped by broader topics and document structure.
 
-The nearest-neighbor inspection in LSA space gives the same message. For selected
+Nearest-neighbor results lead to a similar interpretation. For selected
 meetings, neighboring documents often come from similar policy episodes, such as
 crisis meetings, zero lower bound communications, or inflation-tightening periods.
 This is useful for qualitative exploration: embeddings can retrieve comparable
 communication episodes without relying on the dictionary. However, the neighbors
 are not always ordered by hawkishness. They may instead be close because they
-share institutional vocabulary, document format or crisis-specific topics. This
-is precisely why the embedding analysis is treated as a robustness check rather
-than as the primary measure.
+share institutional vocabulary, document format or crisis-specific topics. For 
+this reason, embeddings are kept as robustness checks rather than used as the main measure.
 
 The Sentence-BERT prototype check produces very weak correlations with the
-dictionary tone: 0.043 for statements and 0.048 for minutes. This does not mean
-that Sentence-BERT is uninformative. It means that a generic contextual embedding,
+dictionary tone: 0.043 for statements and 0.048 for minutes. This means that a generic contextual embedding,
 combined with short hawkish and dovish prototypes, does not reproduce the explicit
 monetary-policy lexicon. In this application, Sentence-BERT is better viewed as a
 tool for qualitative nearest-neighbor inspection or clustering of communication
 episodes than as a direct substitute for the interpretable dictionary score.
 
-This result is also methodologically useful. Sentence-BERT embeddings are trained
-to encode broad sentence similarity, not to estimate central-bank stance. Without
+Sentence-BERT embeddings are trained to encode broad sentence similarity, not to estimate central-bank stance. Without
 fine-tuning or labelled examples, the model has no reason to place \emph{price
 stability}, \emph{restrictive stance}, and \emph{downside risks} on the exact
 monetary-policy axis needed here. The weak prototype correlations therefore
@@ -617,8 +522,9 @@ or paragraph level.
 
 The final analysis relates the hawkish/dovish score to a separate
 inflation/employment balance. The correlation between mandate balance and tone is
-small for statements (-0.042) but positive for minutes (0.405). This difference is
-substantive. Statements are concise and strongly calibrated around the immediate
+small for statements (-0.042) but positive for minutes (0.405). The relationship 
+between diagnosis and tone is therefore much stronger in Minutes than in Statements. 
+Statements are concise and strongly calibrated around the immediate
 policy message, so the diagnostic balance and the policy signal can diverge.
 Minutes provide more space for connecting inflation, labor-market conditions and
 the policy stance; the two dimensions therefore move together more clearly.
@@ -631,76 +537,47 @@ employment concerns coexist with hawkish policy language. These cases are useful
 for qualitative interpretation because they identify moments when the diagnosis
 and the policy signal do not point in the same direction.
 
-Economically, this two-dimensional view is useful because the Fed's dual mandate
-and the policy stance are related but not identical. A document can be
+The two-dimensional view separates the Fed’s diagnosis from its policy stance. A document can be
 inflation-focused because the Committee is explaining high realized inflation, but
 the policy signal can still be cautious if financial conditions are fragile. The
 opposite case can occur when labor-market language remains prominent while the
 Committee signals that policy must stay restrictive. The scatter plot therefore
 turns a one-dimensional tone series into a map of communication regimes.
 
-\section{Discussion}
+\section{Discussion of results}
 
-The main conclusion is that a domain-specific dictionary provides a transparent
-and economically interpretable measure of monetary-policy tone. It recovers the
-expected ordering of rate decisions, is robust to decision-sentence masking, and
-remains stable under a stricter dictionary. It also delivers interpretable
-meeting-level distances between statements and minutes.
-
-The findings also speak to the role of document type. The statement is the
-high-salience message released immediately after a meeting. It compresses the
-decision and the Committee's assessment into a short, carefully negotiated text.
-The minutes, by contrast, are a delayed explanation of the discussion. The fact
-that their average tone is not statistically different from statements should not
-hide their analytical value. Their length makes them more useful for detecting
-the reasons behind the signal, and their meeting-level distance from the statement
-helps identify where the public message was later qualified by more detailed
-arguments.
-
-The model is nevertheless limited. Dictionary scores depend on the chosen terms,
-and some words are context-dependent. A term such as \emph{support} may describe
-policy accommodation, but it can also appear in a neutral institutional phrase.
-Conversely, a sentence can be hawkish without using any dictionary term. The
-strict-dictionary and sentence-level checks reduce this concern but do not remove
-it.
-
-Another limitation concerns the unit of observation. The analysis treats each
-document as one observation, but minutes contain multiple speakers, topics and
-sections. A more granular model could separate staff reviews, participant views
-and policy discussion. It could also distinguish uncertainty language from stance
-language. This would matter in meetings where the Fed describes weak activity,
-high uncertainty and inflation risk at the same time.
-
-The supervised and embedding checks clarify what the dictionary does and does not
-measure. TF-IDF classifiers confirm that policy-decision information is present in
-the text, especially in minutes, but they also learn episode-specific vocabulary.
-LSA and Sentence-BERT capture semantic neighborhoods and macroeconomic episodes,
-yet they do not naturally reproduce the hawkish/dovish scale without stronger
-supervision. A stronger extension would annotate sentences manually as hawkish,
-dovish or neutral and train a supervised classifier on expert labels. Another
-extension would test market reactions around meetings to distinguish descriptive
-tone from communication surprises.
-
-The external validity of the approach is promising but not automatic. The same
-pipeline could be applied to European Central Bank press conferences or Bank of
-England minutes, but the dictionaries would need to be adapted to institutional
-language and policy frameworks. Even within the Fed corpus, vocabulary changes
-over time. Terms related to asset purchases, forward guidance and balance-sheet
-policy become central after 2008. A static dictionary is therefore easy to
-interpret, but future work could allow the vocabulary to evolve while preserving
-an auditable mapping to hawkish and dovish concepts.
+The dictionary score provides a transparent and economically interpretable measure of monetary-policy tone. It reproduces the expected ordering of rate decisions, remains robust to the masking 
+of sentences announcing the decision, and remains stable under a stricter version of the dictionary. It also makes it possible to compute interpretable distances, at the meeting level, between \textit{Statements} and \textit{Minutes}.
+The results also shed light on the role of document type. The \textit{Statement} is the high-visibility message released immediately after a meeting. It condenses the Committee’s decision and assessment into a short, carefully 
+negotiated text. The \textit{Minutes}, by contrast, constitute a delayed explanation of the discussion. The fact that their average tone is not statistically different from that of the statements should not obscure their analytical 
+value. Their length makes them more useful for identifying the underlying reasons behind the signal, and their meeting-level distance from the statements helps identify situations in which the public message was subsequently 
+qualified or refined through more detailed arguments.
+Several limitations remain. Dictionary-based scores depend on the selected terms, and some words are sensitive to context. A term such as ``support'' may describe an accommodative policy, but it may also appear 
+in a neutral institutional expression. Conversely, a sentence may be ``hawkish'' without explicitly using any dictionary term. Checks based on a stricter version of the dictionary and on sentence-level analysis reduce this concern, 
+but they do not eliminate it entirely.
+Another limitation concerns the unit of observation. The analysis treats each document as a single observation, whereas meeting records contain multiple speakers, themes, and sections. A more granular model could distinguish staff 
+analyses, participants’ views, and the monetary policy discussion itself. It could also differentiate uncertainty language from policy-stance language. This distinction would be particularly relevant during 
+meetings in which the Federal Reserve simultaneously describes weak economic activity, high uncertainty, and inflationary risks.
+Supervised checks and embedding-based analyses clarify what the dictionary measures—and what it does not measure. TF-IDF classifiers confirm that information related to monetary policy decisions is indeed present in the text, 
+particularly in the meeting records, but they also learn vocabulary specific to certain historical episodes. LSA and Sentence-BERT capture semantic neighborhoods and macroeconomic episodes, but they do not spontaneously reproduce 
+the ``hawkish/dovish'' scale without stronger supervision. As an extension, we could manually annotate sentences as ``hawkish,'' ``dovish,'' or neutral, and then train a supervised classifier on expert labels. Another 
+extension would be to analyze financial market reactions around meetings in order to distinguish descriptive tone from genuine communication surprises.
+The approach may transfer to other central banks, but only after adapting the dictionary to each institution. The same processing pipeline could be applied to European Central Bank press conferences or Bank of England meeting 
+records, but the dictionaries would need to be adapted to the institutional language and monetary policy frameworks specific to each institution. Even within the Federal Reserve corpus, vocabulary evolves over time. Terms 
+related to asset purchases, forward guidance, and balance sheet management become central after 2008. A static dictionary remains easy to interpret, but future work could allow the vocabulary to evolve in a controlled manner 
+while preserving a verifiable correspondence with the ``hawkish'' and ``dovish'' concepts.
 
 \section{Conclusion}
 
 This paper measures the hawkish/dovish signal in FOMC statements and minutes from
-2000 to 2024. The empirical results show that hawkish language is highest around
-rate hikes, lower in high-VIX periods, and not visibly different around election
-windows. Minutes and statements have similar average tone but can differ
+2000 to 2024. Hawkish language peaks around rate hikes, declines in high-VIX periods, 
+and shows little variation around election windows. Minutes and statements have similar average tone but can differ
 substantially at the meeting level. Robustness checks based on decision masking,
 sentence tagging, TF-IDF models, strict dictionaries, LSA and Sentence-BERT support
 the central interpretation: the dictionary score is a useful, transparent measure
 of monetary-policy signal, while dense embeddings are better suited to studying
 broader semantic structure and communication regimes.
+
 
 \begingroup
 \scriptsize
